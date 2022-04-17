@@ -22,15 +22,15 @@ true > "$temp_arp"
 
 if [ ! -f "$config" ] || [ "$1" = "config" ]; then
   while read -r line; do
-    column=($line)
-    echo "${column[0]}"$'\t'"${column[2]}" >> "$temp_arp"
-  done <<< "$(arp | sed '1d' | sed '/incomplete/d')"
+    IFS=$" ";column=($line);unset IFS
+    echo "${column[0]}"$'\t'"${column[4]}" >> "$temp_arp"
+  done <<< "$(ip n)"
 
   mac_address=$(zenity --list --title="Configure a Device to Wake-On-Lan" \
     --width=800 --height=200 --print-column=2 \
     --separator='\t' --extra-button "Manual" --ok-label "Confirm" \
     --column="Name/IP" --column="MAC Adress"\
-    "$(cat "$temp_arp")")
+    $(cat "$temp_arp"))
   
   if [ "$?" = 1 ] ; then
     if [ "$mac_address" = "Manual" ]; then
@@ -58,9 +58,14 @@ else
     read -r mac_address < "$config"
   fi
 
-  zenity --password \
-    --title="Sudo Password Required" \
-    --ok-label "Wake Up!" | sudo -kS ether-wake "$mac_address"
+  #This worked on my Fedora machine, always Dev on your target system!
+  #zenity --password \
+  #  --title="Sudo Password Required" \
+  #  --ok-label "Wake Up!" | sudo -kS ether-wake "$mac_address"
+  
+  #Stolen from: https://stackoverflow.com/questions/31588035/bash-one-line-command-to-send-wake-on-lan-magic-packet-without-specific-tool
+  echo -e $(echo $(printf 'f%.0s' {1..12}; printf "$(echo $mac_address | sed 's/://g')%.0s" {1..16}) | sed -e 's/../\\x&/g') | socat - UDP-DATAGRAM:255.255.255.255:4000,broadcast
+
 fi
 
 exit 0;
