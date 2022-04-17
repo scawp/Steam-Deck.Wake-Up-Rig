@@ -23,18 +23,27 @@ true > "$temp_arp"
 if [ ! -f "$config" ] || [ "$1" = "config" ]; then
   while read -r line; do
     column=($line)
-    echo "${column[0]}"$'\t'"${column[2]}" >> $temp_arp
-  done <<< $(arp | sed '1d' | sed '/incomplete/d')
+    echo "${column[0]}"$'\t'"${column[2]}" >> "$temp_arp"
+  done <<< "$(arp | sed '1d' | sed '/incomplete/d')"
 
   mac_address=$(zenity --list --title="Configure a Device to Wake-On-Lan" \
     --width=800 --height=200 --print-column=2 \
-    --separator='\t' --ok-label "Confirm" \
+    --separator='\t' --extra-button "Manual" --ok-label "Confirm" \
     --column="Name/IP" --column="MAC Adress"\
-    $(cat "$temp_arp"))
+    "$(cat "$temp_arp")")
   
   if [ "$?" = 1 ] ; then
-    echo "Aborted"
-    exit 1;
+    if [ "$mac_address" = "Manual" ]; then
+      mac_address=$(zenity --forms --title="Manual Config" \
+        --text="Enter MAC Adress" --add-entry="MAC Address")
+      if [ "$?" = 1 ] ; then
+        echo "Aborted"
+        exit 1;
+      fi
+    else
+      echo "Aborted"
+      exit 1;
+    fi
   fi
     if [ -z "$mac_address" ] ; then
     echo "None Selected"
@@ -43,7 +52,12 @@ if [ ! -f "$config" ] || [ "$1" = "config" ]; then
 
   echo "$mac_address" > "$config"
 else
-  read -r mac_address < "$config"
+  if [ ! -z "$1" ] ; then
+    mac_address="$1"
+  else 
+    read -r mac_address < "$config"
+  fi
+
   zenity --password \
     --title="Sudo Password Required" \
     --ok-label "Wake Up!" | sudo -kS ether-wake "$mac_address"
